@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shimmer</title>
+
+  <!-- Tailwind CSS -->
+  <link href="https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    .shine {
+      background: #f6f7f8;
+      background-image: linear-gradient(to right, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
+      background-repeat: no-repeat;
+      background-size: 800px 104px;
+      display: inline-block;
+      position: relative;
+      border-radius: 20px;
+
+      -webkit-animation-duration: 1s;
+      -webkit-animation-fill-mode: forwards;
+      -webkit-animation-iteration-count: infinite;
+      -webkit-animation-name: placeholderShimmer;
+      -webkit-animation-timing-function: linear;
+    }
+
+    lines {
+      height: 10px;
+      margin-top: 10px;
+      width: 100%;
+    }
+
+    @-webkit-keyframes placeholderShimmer {
+      0% {
+        background-position: -468px 0;
+      }
+
+      100% {
+        background-position: 468px 0;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="h-screen bg-blue-400 flex flex-col items-center justify-center w-full">
+    <div class="w-full md:w-1/2 m-8 rounded-xl p-8 shadow-md bg-white relative block">
+      <lines class="shine" />
+      <lines class="shine mt-5" />
+      <lines class="shine mt-5" />
+    </div>
+</body>
+
+</html>
