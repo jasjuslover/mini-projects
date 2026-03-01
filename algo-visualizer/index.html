@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Algorithm Visualizer (Pathfinding & Fibonacci)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background: #f0f2f5;
+        }
+
+        #controls {
+            margin: 10px;
+        }
+
+        button {
+            padding: 8px 15px;
+            margin: 3px;
+        }
+
+        #visualizer {
+            margin: 20px auto;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(20, 25px);
+            grid-gap: 2px;
+        }
+
+        .cell {
+            width: 25px;
+            height: 25px;
+            background: #fff;
+            border: 1px solid #ddd;
+            transition: 0.2s;
+        }
+
+        .start {
+            background: #4CAF50;
+        }
+
+        .end {
+            background: #f44336;
+        }
+
+        .wall {
+            background: #000;
+        }
+
+        .visited {
+            background: #2196F3;
+        }
+
+        .path {
+            background: #FFD700;
+        }
+
+        .bar {
+            display: inline-block;
+            margin: 1px;
+            width: 20px;
+            background: #4CAF50;
+            transition: 0.2s;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Algorithm Visualizer</h1>
+    <div id="controls">
+        <strong>Pathfinding:</strong>
+        <button onclick="setAlgorithm('dijkstra')">Dijkstra</button>
+        <button onclick="setAlgorithm('astar')">A*</button>
+        <button onclick="setAlgorithm('bfs')">BFS</button>
+        <button onclick="setAlgorithm('dfs')">DFS</button>
+        <strong>Other:</strong>
+        <button onclick="setAlgorithm('fibonacci')">Fibonacci</button>
+        <br>
+        <button onclick="play()">Play</button>
+        <button onclick="stop()">Stop</button>
+    </div>
+    <div id="visualizer"></div>
+
+    <script>
+        let algorithm = '',
+            running = false,
+            stopRequested = false;
+        const rows = 20,
+            cols = 20;
+        let grid = [];
+
+        // Sleep helper
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Play/Stop functions
+        function play() {
+            running = true;
+            stopRequested = false;
+            runAlgorithm();
+        }
+
+        function stop() {
+            stopRequested = true;
+            running = false;
+        }
+
+        // Clear visualizer
+        function clearVisualizer() {
+            document.getElementById('visualizer').innerHTML = '';
+        }
+
+        // Set algorithm
+        function setAlgorithm(algo) {
+            algorithm = algo;
+            stopRequested = true;
+            running = false;
+            clearVisualizer();
+            if (['dijkstra', 'astar', 'bfs', 'dfs'].includes(algo)) initGrid();
+            if (algo === 'fibonacci') initFibonacci();
+        }
+
+        // Grid Initialization
+        function initGrid() {
+            const container = document.getElementById('visualizer');
+            container.className = 'grid';
+            container.style.gridTemplateColumns = `repeat(${cols},25px)`;
+            grid = [];
+            for (let r = 0; r < rows; r++) {
+                let row = [];
+                for (let c = 0; c < cols; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    if (r === 0 && c === 0) cell.classList.add('start');
+                    if (r === rows - 1 && c === cols - 1) cell.classList.add('end');
+                    cell.addEventListener('click', () => toggleWall(r, c));
+                    container.appendChild(cell);
+                    row.push({
+                        cell,
+                        visited: false,
+                        prev: null
+                    });
+                }
+                grid.push(row);
+            }
+        }
+
+        function toggleWall(r, c) {
+            if ((r === 0 && c === 0) || (r === rows - 1 && c === cols - 1)) return;
+            if (grid[r][c].cell.classList.contains('wall')) grid[r][c].cell.classList.remove('wall');
+            else grid[r][c].cell.classList.add('wall');
+        }
+
+        // Fibonacci initialization
+        function initFibonacci() {
+            const container = document.getElementById('visualizer');
+            container.className = '';
+            container.innerHTML = '';
+        }
+
+        // Run selected algorithm
+        async function runAlgorithm() {
+            if (!running) return;
+            try {
+                if (algorithm === 'dijkstra') await runDijkstra();
+                else if (algorithm === 'astar') await runAStar();
+                else if (algorithm === 'bfs') await runBFS();
+                else if (algorithm === 'dfs') await runDFS();
+                else if (algorithm === 'fibonacci') await visualizeFibonacci();
+            } catch (e) {
+                /* stopped */ }
+        }
+
+        // Stop check
+        async function checkStop() {
+            if (stopRequested) {
+                running = false;
+                throw 'Stopped';
+            }
+        }
+
+        // --- Pathfinding Algorithms ---
+        async function runDijkstra() {
+            for (let r = 0; r < rows; r++)
+                for (let c = 0; c < cols; c++) {
+                    grid[r][c].visited = false;
+                    grid[r][c].prev = null;
+                    if (!grid[r][c].cell.classList.contains('start') && !grid[r][c].cell.classList.contains('end')) grid[r][c].cell.classList.remove('visited', 'path');
+                }
+            let unvisited = [];
+            for (let r = 0; r < rows; r++)
+                for (let c = 0; c < cols; c++) unvisited.push([r, c, Infinity]);
+            unvisited[0][2] = 0;
+            while (unvisited.length > 0) {
+                await checkStop();
+                unvisited.sort((a, b) => a[2] - b[2]);
+                let [r, c, d] = unvisited.shift();
+                const node = grid[r][c];
+                if (node.visited) continue;
+                node.visited = true;
+                if (!node.cell.classList.contains('start') && !node.cell.classList.contains('end')) node.cell.classList.add('visited');
+                if (r === rows - 1 && c === cols - 1) break;
+                for (let [nr, nc] of getNeighbors(r, c)) {
+                    if (!grid[nr][nc].visited) {
+                        unvisited.push([nr, nc, d + 1]);
+                        grid[nr][nc].prev = [r, c];
+                    }
+                }
+                await sleep(20);
+            }
+            await reconstructPath();
+        }
+
+        // BFS
+        async function runBFS() {
+            for (let r = 0; r < rows; r++)
+                for (let c = 0; c < cols; c++) {
+                    grid[r][c].visited = false;
+                    grid[r][c].prev = null;
+                    if (!grid[r][c].cell.classList.contains('start') && !grid[r][c].cell.classList.contains('end')) grid[r][c].cell.classList.remove('visited', 'path');
+                }
+            let queue = [
+                [0, 0]
+            ];
+            grid[0][0].visited = true;
+            while (queue.length > 0) {
+                await checkStop();
+                const [r, c] = queue.shift();
+                const node = grid[r][c];
+                if (!node.cell.classList.contains('start') && !node.cell.classList.contains('end')) node.cell.classList.add('visited');
+                if (r === rows - 1 && c === cols - 1) break;
+                for (let [nr, nc] of getNeighbors(r, c)) {
+                    const neighbor = grid[nr][nc];
+                    if (!neighbor.visited) {
+                        neighbor.visited = true;
+                        neighbor.prev = [r, c];
+                        queue.push([nr, nc]);
+                    }
+                }
+                await sleep(20);
+            }
+            await reconstructPath();
+        }
+
+        // DFS
+        async function runDFS() {
+            for (let r = 0; r < rows; r++)
+                for (let c = 0; c < cols; c++) {
+                    grid[r][c].visited = false;
+                    grid[r][c].prev = null;
+                    if (!grid[r][c].cell.classList.contains('start') && !grid[r][c].cell.classList.contains('end')) grid[r][c].cell.classList.remove('visited', 'path');
+                }
+            let stack = [
+                [0, 0]
+            ];
+            grid[0][0].visited = true;
+            while (stack.length > 0) {
+                await checkStop();
+                const [r, c] = stack.pop();
+                const node = grid[r][c];
+                if (!node.cell.classList.contains('start') && !node.cell.classList.contains('end')) node.cell.classList.add('visited');
+                if (r === rows - 1 && c === cols - 1) break;
+                for (let [nr, nc] of getNeighbors(r, c).reverse()) {
+                    const neighbor = grid[nr][nc];
+                    if (!neighbor.visited) {
+                        neighbor.visited = true;
+                        neighbor.prev = [r, c];
+                        stack.push([nr, nc]);
+                    }
+                }
+                await sleep(20);
+            }
+            await reconstructPath();
+        }
+
+        // Simple A* with Manhattan heuristic
+        async function runAStar() {
+            for (let r = 0; r < rows; r++)
+                for (let c = 0; c < cols; c++) {
+                    grid[r][c].visited = false;
+                    grid[r][c].prev = null;
+                    if (!grid[r][c].cell.classList.contains('start') && !grid[r][c].cell.classList.contains('end')) grid[r][c].cell.classList.remove('visited', 'path');
+                }
+
+            function heuristic([r, c]) {
+                return Math.abs(r - (rows - 1)) + Math.abs(c - (cols - 1));
+            }
+            let openSet = [
+                [0, 0]
+            ];
+            grid[0][0].visited = true;
+            let dist = [];
+            for (let r = 0; r < rows; r++) {
+                dist[r] = [];
+                for (let c = 0; c < cols; c++) dist[r][c] = Infinity;
+            }
+            dist[0][0] = 0;
+            while (openSet.length > 0) {
+                await checkStop();
+                openSet.sort((a, b) => dist[a[0]][a[1]] + heuristic(a) - dist[b[0]][b[1]] - heuristic(b));
+                const [r, c] = openSet.shift();
+                const node = grid[r][c];
+                if (!node.cell.classList.contains('start') && !node.cell.classList.contains('end')) node.cell.classList.add('visited');
+                if (r === rows - 1 && c === cols - 1) break;
+                for (let [nr, nc] of getNeighbors(r, c)) {
+                    if (dist[nr][nc] > dist[r][c] + 1) {
+                        dist[nr][nc] = dist[r][c] + 1;
+                        grid[nr][nc].prev = [r, c];
+                        if (!grid[nr][nc].visited) openSet.push([nr, nc]);
+                    }
+                }
+                await sleep(20);
+            }
+            await reconstructPath();
+        }
+
+        // Reconstruct path
+        async function reconstructPath() {
+            let r = rows - 1,
+                c = cols - 1;
+            while (grid[r][c].prev) {
+                await checkStop();
+                const [pr, pc] = grid[r][c].prev;
+                if (!grid[r][c].cell.classList.contains('start') && !grid[r][c].cell.classList.contains('end')) grid[r][c].cell.classList.add('path');
+                r = pr;
+                c = pc;
+                await sleep(30);
+            }
+        }
+
+        // Get neighbors
+        function getNeighbors(r, c) {
+            const neighbors = [];
+            [
+                [1, 0],
+                [0, 1],
+                [-1, 0],
+                [0, -1]
+            ].forEach(([dr, dc]) => {
+                const nr = r + dr,
+                    nc = c + dc;
+                if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !grid[nr][nc].cell.classList.contains('wall')) neighbors.push([nr, nc]);
+            });
+            return neighbors;
+        }
+
+        // --- Fibonacci Visualization ---
+        async function visualizeFibonacci() {
+            const container = document.getElementById('visualizer');
+            container.className = '';
+            container.innerHTML = '';
+            let n = 15,
+                fib = [0, 1];
+            for (let i = 2; i < n; i++) fib.push(fib[i - 1] + fib[i - 2]);
+            for (let val of fib) {
+                await checkStop();
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                bar.style.height = val * 5 + 'px';
+                container.appendChild(bar);
+                await sleep(200);
+            }
+        }
+
+        // Initialize default
+        setAlgorithm('dijkstra');
+    </script>
+</body>
+
+</html>
