@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Monotone SVG Animator</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { darkMode: 'class' }
+</script>
+
+<style>
+.drawing-path {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.color-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+.color-btn.active {
+    border-color: #6b7280;
+    transform: scale(1.15);
+}
+</style>
+</head>
+
+<body class="bg-neutral-50 dark:bg-neutral-950 transition-colors duration-500 min-h-screen flex flex-col items-center text-neutral-900 dark:text-neutral-100">
+
+<header class="text-center mt-10 mb-8">
+    <h1 class="text-4xl font-semibold tracking-tight">SVG Draw & Animate</h1>
+    <p class="text-neutral-500 dark:text-neutral-400 mt-2">Monotone. Minimal. Smart.</p>
+</header>
+
+<!-- Controls -->
+<div class="w-[92%] max-w-5xl bg-white dark:bg-neutral-900 shadow-xl rounded-2xl p-6 mb-8 transition-colors duration-500">
+
+<div class="grid md:grid-cols-5 gap-6 items-end">
+
+    <!-- Colors -->
+    <div>
+        <label class="text-sm text-neutral-500 dark:text-neutral-400 block mb-2 flex items-center gap-2">
+            <!-- Palette Icon -->
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="8" cy="8" r="6"/>
+            </svg>
+            Colors
+        </label>
+        <div id="colorPalette" class="flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- Stroke Width -->
+    <div>
+        <label class="text-sm text-neutral-500 dark:text-neutral-400 block mb-1 flex items-center gap-2">
+            <!-- Pen Icon -->
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 13l3-1 7-7-2-2-7 7-1 3z"/>
+            </svg>
+            Width <span id="widthValue">3</span>
+        </label>
+        <input type="range" id="strokeWidth" min="1" max="20" value="3"
+            class="w-full accent-neutral-800 dark:accent-neutral-200">
+    </div>
+
+    <!-- Speed -->
+    <div>
+        <label class="text-sm text-neutral-500 dark:text-neutral-400 block mb-1 flex items-center gap-2">
+            <!-- Clock Icon -->
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="8" cy="8" r="6"/>
+                <path d="M8 4v4l3 2"/>
+            </svg>
+            Speed <span id="speedValue">2</span>s
+        </label>
+        <input type="range" id="speedControl" min="0.5" max="5" step="0.5" value="2"
+            class="w-full accent-neutral-800 dark:accent-neutral-200">
+    </div>
+
+    <!-- Play / Clear -->
+    <div class="flex gap-2">
+        <button onclick="playAnimation()"
+            class="flex-1 bg-neutral-900 text-white dark:bg-neutral-100 dark:text-black rounded-lg py-2 font-medium hover:opacity-80 transition flex items-center justify-center gap-2">
+            ▶ Play
+        </button>
+        <button onclick="clearDrawing()"
+            class="flex-1 border border-neutral-300 dark:border-neutral-700 rounded-lg py-2 font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800 transition flex items-center justify-center gap-2">
+            ✕ Clear
+        </button>
+    </div>
+
+    <!-- Theme -->
+    <div>
+        <button onclick="toggleTheme()"
+            class="w-full border border-neutral-300 dark:border-neutral-700 rounded-lg py-2 font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800 transition flex items-center justify-center gap-2">
+            🌗 Theme
+        </button>
+    </div>
+
+</div>
+</div>
+
+<!-- Canvas -->
+<div class="w-[92%] max-w-5xl bg-white dark:bg-neutral-900 shadow-2xl rounded-2xl overflow-hidden transition-colors duration-500">
+    <svg id="drawingArea" width="100%" height="500"
+        class="cursor-crosshair touch-none"></svg>
+</div>
+
+<script>
+const html = document.documentElement;
+const svg = document.getElementById("drawingArea");
+const strokeWidthInput = document.getElementById("strokeWidth");
+const speedControl = document.getElementById("speedControl");
+const widthValue = document.getElementById("widthValue");
+const speedValue = document.getElementById("speedValue");
+const paletteContainer = document.getElementById("colorPalette");
+
+const colors = [
+    "#000000", "#1f2937", "#374151", "#4b5563", "#6b7280",
+    "#9ca3af", "#d1d5db", "#e5e7eb", "#f3f4f6", "#ffffff"
+];
+
+let selectedColor = "#000000";
+let userSelectedColor = false;
+
+let isDrawing = false;
+let currentPath = null;
+let paths = [];
+
+widthValue.textContent = strokeWidthInput.value;
+speedValue.textContent = speedControl.value;
+
+strokeWidthInput.oninput = () => widthValue.textContent = strokeWidthInput.value;
+speedControl.oninput = () => speedValue.textContent = speedControl.value;
+
+/* Build Color Palette */
+function buildPalette() {
+    paletteContainer.innerHTML = "";
+    colors.forEach(color => {
+        const btn = document.createElement("div");
+        btn.className = "color-btn";
+        btn.style.background = color;
+
+        btn.onclick = () => {
+            userSelectedColor = true;
+            setActiveColor(color);
+        };
+
+        paletteContainer.appendChild(btn);
+    });
+}
+
+function setActiveColor(color) {
+    selectedColor = color;
+    document.querySelectorAll(".color-btn").forEach(btn => {
+        btn.classList.remove("active");
+        if (btn.style.backgroundColor === rgbToHex(btn.style.backgroundColor) ||
+            btn.style.background === color) {
+            btn.classList.add("active");
+        }
+    });
+}
+
+/* Convert rgb() to hex */
+function rgbToHex(rgb) {
+    if (!rgb) return "";
+    const result = rgb.match(/\d+/g);
+    if (!result) return rgb;
+    return "#" + result.map(x => {
+        const hex = parseInt(x).toString(16);
+        return hex.length === 1 ? "0" + hex : hex;
+    }).join("");
+}
+
+/* Theme */
+function toggleTheme() {
+    html.classList.toggle("dark");
+
+    if (!userSelectedColor) {
+        if (html.classList.contains("dark")) {
+            setActiveColor("#ffffff");
+        } else {
+            setActiveColor("#000000");
+        }
+    }
+}
+
+/* Default Color */
+function setDefaultColor() {
+    if (html.classList.contains("dark")) {
+        setActiveColor("#ffffff");
+    } else {
+        setActiveColor("#000000");
+    }
+}
+
+/* Drawing */
+function getPosition(evt) {
+    const rect = svg.getBoundingClientRect();
+    const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+    const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+    return { x: clientX - rect.left, y: clientY - rect.top };
+}
+
+function startDrawing(e) {
+    isDrawing = true;
+    const pos = getPosition(e);
+
+    currentPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    currentPath.setAttribute("class", "drawing-path");
+    currentPath.setAttribute("stroke", selectedColor);
+    currentPath.setAttribute("stroke-width", strokeWidthInput.value);
+    currentPath.setAttribute("d", `M ${pos.x} ${pos.y}`);
+
+    svg.appendChild(currentPath);
+    paths.push(currentPath);
+}
+
+function draw(e) {
+    if (!isDrawing) return;
+    const pos = getPosition(e);
+    const d = currentPath.getAttribute("d");
+    currentPath.setAttribute("d", d + ` L ${pos.x} ${pos.y}`);
+}
+
+function stopDrawing() { isDrawing = false; }
+
+svg.addEventListener("mousedown", startDrawing);
+svg.addEventListener("mousemove", draw);
+svg.addEventListener("mouseup", stopDrawing);
+svg.addEventListener("mouseleave", stopDrawing);
+
+svg.addEventListener("touchstart", startDrawing);
+svg.addEventListener("touchmove", draw);
+svg.addEventListener("touchend", stopDrawing);
+
+/* Animation */
+function animatePath(path, delay, duration) {
+    const length = path.getTotalLength();
+    path.style.transition = "none";
+    path.style.strokeDasharray = length;
+    path.style.strokeDashoffset = length;
+
+    setTimeout(() => {
+        path.style.transition = `stroke-dashoffset ${duration}s cubic-bezier(.65,0,.35,1)`;
+        path.style.strokeDashoffset = "0";
+    }, delay);
+}
+
+function playAnimation() {
+    let delay = 0;
+    const duration = parseFloat(speedControl.value);
+
+    paths.forEach(path => {
+        animatePath(path, delay, duration);
+        delay += duration * 1000;
+    });
+}
+
+function clearDrawing() {
+    paths.forEach(p => svg.removeChild(p));
+    paths = [];
+}
+
+/* Init */
+buildPalette();
+setDefaultColor();
+</script>
+
+</body>
+</html>
