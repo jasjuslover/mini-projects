@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Hacker Escape – Pac-Man Style</title>
+    <style>
+        body {
+            margin: 0;
+            background: black;
+            overflow: hidden;
+            font-family: Arial;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            margin: auto;
+            background: #0a0a0a;
+        }
+
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #00ffcc;
+            font-size: 18px;
+        }
+
+        #joystick {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: rgba(0, 255, 200, 0.1);
+            border: 2px solid #00ffcc;
+            display: none;
+        }
+
+        #stick {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: #00ffcc;
+            border-radius: 50%;
+            top: 30px;
+            left: 30px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="ui">Reach the EXIT without being caught!</div>
+    <canvas id="game"></canvas>
+    <div id="joystick">
+        <div id="stick"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+        canvas.width = 640;
+        canvas.height = 480;
+        const tileSize = 32;
+
+        // 0 = floor, 1 = wall, 2 = player start, 4 = exit
+        const map = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 1],
+            [1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1],
+            [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ];
+
+        let player = {
+            x: 0,
+            y: 0,
+            size: 20,
+            speed: 2
+        };
+        let keys = {};
+        let alarm = false;
+        let win = false;
+
+        // Find player start
+        for (let r = 0; r < map.length; r++) {
+            for (let c = 0; c < map[r].length; c++) {
+                if (map[r][c] === 2) {
+                    player.x = c * tileSize + 16;
+                    player.y = r * tileSize + 16;
+                }
+            }
+        }
+
+        // Opponents (like Pac-Man ghosts)
+        let opponents = [{
+                x: 18 * tileSize + 16,
+                y: 1 * tileSize + 16,
+                dirX: 0,
+                dirY: 1,
+                speed: 1.5,
+                size: 20
+            },
+            {
+                x: 1 * tileSize + 16,
+                y: 7 * tileSize + 16,
+                dirX: 1,
+                dirY: 0,
+                speed: 1.2,
+                size: 20
+            }
+        ];
+
+        const joystick = document.getElementById("joystick");
+        const stick = document.getElementById("stick");
+        let touchActive = false,
+            joyX = 0,
+            joyY = 0;
+        if ("ontouchstart" in window) {
+            joystick.style.display = "block";
+        }
+        joystick.addEventListener("touchstart", e => {
+            touchActive = true;
+        });
+        joystick.addEventListener("touchmove", e => {
+            let rect = joystick.getBoundingClientRect();
+            let touch = e.touches[0];
+            let x = touch.clientX - rect.left - 50;
+            let y = touch.clientY - rect.top - 50;
+            let dist = Math.sqrt(x * x + y * y);
+            if (dist > 40) {
+                x *= 40 / dist;
+                y *= 40 / dist;
+            }
+            joyX = x / 40;
+            joyY = y / 40;
+            stick.style.left = (x + 50 - 20) + "px";
+            stick.style.top = (y + 50 - 20) + "px";
+        });
+        joystick.addEventListener("touchend", () => {
+            touchActive = false;
+            joyX = 0;
+            joyY = 0;
+            stick.style.left = "30px";
+            stick.style.top = "30px";
+        });
+
+        // Keyboard
+        document.addEventListener("keydown", e => keys[e.key] = true);
+        document.addEventListener("keyup", e => keys[e.key] = false);
+
+        // Collision
+        function isWall(x, y) {
+            let col = Math.floor(x / tileSize);
+            let row = Math.floor(y / tileSize);
+            return map[row][col] === 1;
+        }
+
+        // Player update
+        function updatePlayer() {
+            let moveX = 0,
+                moveY = 0;
+            if (!touchActive) {
+                if (keys["ArrowUp"] || keys["w"]) moveY = -1;
+                if (keys["ArrowDown"] || keys["s"]) moveY = 1;
+                if (keys["ArrowLeft"] || keys["a"]) moveX = -1;
+                if (keys["ArrowRight"] || keys["d"]) moveX = 1;
+            } else {
+                moveX = joyX;
+                moveY = joyY;
+            }
+            if (moveX !== 0 && moveY !== 0) {
+                moveX /= Math.sqrt(2);
+                moveY /= Math.sqrt(2);
+            }
+            let newX = player.x + moveX * player.speed;
+            let newY = player.y + moveY * player.speed;
+            if (!isWall(newX, player.y)) player.x = newX;
+            if (!isWall(player.x, newY)) player.y = newY;
+        }
+
+        // Opponents update
+        function updateOpponents() {
+            for (let opp of opponents) {
+                let nextX = opp.x + opp.dirX * opp.speed;
+                let nextY = opp.y + opp.dirY * opp.speed;
+                if (isWall(nextX, nextY)) {
+                    // pick random new direction along open tiles
+                    let dirs = [
+                        [1, 0],
+                        [-1, 0],
+                        [0, 1],
+                        [0, -1]
+                    ];
+                    dirs = dirs.sort(() => Math.random() - 0.5);
+                    for (let d of dirs) {
+                        let testX = opp.x + d[0] * tileSize / 2;
+                        let testY = opp.y + d[1] * tileSize / 2;
+                        if (!isWall(testX, testY)) {
+                            opp.dirX = d[0];
+                            opp.dirY = d[1];
+                            break;
+                        }
+                    }
+                } else {
+                    opp.x = nextX;
+                    opp.y = nextY;
+                }
+                // Collision with player
+                let dx = player.x - opp.x,
+                    dy = player.y - opp.y;
+                if (Math.sqrt(dx * dx + dy * dy) < (player.size + opp.size) / 2) {
+                    alarm = true;
+                    setTimeout(() => alarm = false, 500);
+                }
+            }
+        }
+
+        // Exit check
+        function checkWin() {
+            let col = Math.floor(player.x / tileSize);
+            let row = Math.floor(player.y / tileSize);
+            if (map[row][col] === 4) {
+                win = true;
+                document.getElementById("ui").innerText = "YOU ESCAPED!";
+            }
+        }
+
+        // Game update
+        function update() {
+            if (win) return;
+            updatePlayer();
+            updateOpponents();
+            checkWin();
+        }
+
+        // Draw everything
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let r = 0; r < map.length; r++) {
+                for (let c = 0; c < map[r].length; c++) {
+                    if (map[r][c] === 1) {
+                        ctx.fillStyle = "#111";
+                        ctx.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
+                    }
+                    if (map[r][c] === 4) {
+                        ctx.fillStyle = "#00ff00";
+                        ctx.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
+                    }
+                }
+            }
+            // Draw opponents
+            for (let opp of opponents) {
+                ctx.fillStyle = "red";
+                ctx.beginPath();
+                ctx.arc(opp.x, opp.y, opp.size / 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            // Draw player
+            ctx.fillStyle = "#00ffcc";
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+            // Alarm flash
+            if (alarm) {
+                ctx.fillStyle = "rgba(255,0,0,0.3)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        // Game loop
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        gameLoop();
+    </script>
+</body>
+
+</html>
