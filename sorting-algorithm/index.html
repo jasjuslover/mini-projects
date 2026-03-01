@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sorting Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background: #f0f0f0;
+        }
+
+        #array {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            margin-top: 20px;
+            height: 300px;
+        }
+
+        .bar {
+            width: 20px;
+            margin: 0 2px;
+            background-color: teal;
+        }
+
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Sorting Algorithms Visualization</h1>
+    <div>
+        <button onclick="shuffleArray()">Shuffle Array</button>
+        <button onclick="startSort('bubble')">Bubble Sort</button>
+        <button onclick="startSort('selection')">Selection Sort</button>
+        <button onclick="startSort('insertion')">Insertion Sort</button>
+        <button onclick="startSort('merge')">Merge Sort</button>
+        <button onclick="startSort('quick')">Quick Sort</button>
+        <button onclick="startSort('heap')">Heap Sort</button>
+    </div>
+    <div id="array"></div>
+
+    <script>
+        const arraySize = 30;
+        let array = [];
+
+        function shuffleArray() {
+            array = Array.from({
+                length: arraySize
+            }, () => Math.floor(Math.random() * 200) + 10);
+            renderArray();
+        }
+
+        function renderArray(highlight = []) {
+            const container = document.getElementById('array');
+            container.innerHTML = '';
+            array.forEach((value, idx) => {
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                bar.style.height = value + 'px';
+                bar.style.backgroundColor = highlight.includes(idx) ? 'red' : 'teal';
+                container.appendChild(bar);
+            });
+        }
+
+        async function swap(i, j) {
+            [array[i], array[j]] = [array[j], array[i]];
+            renderArray([i, j]);
+            await sleep(50);
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        async function startSort(type) {
+            switch (type) {
+                case 'bubble':
+                    await bubbleSort();
+                    break;
+                case 'selection':
+                    await selectionSort();
+                    break;
+                case 'insertion':
+                    await insertionSort();
+                    break;
+                case 'merge':
+                    await mergeSortWrapper();
+                    break;
+                case 'quick':
+                    await quickSortWrapper(0, array.length - 1);
+                    break;
+                case 'heap':
+                    await heapSort();
+                    break;
+            }
+        }
+
+        // Bubble Sort
+        async function bubbleSort() {
+            for (let i = 0; i < array.length - 1; i++) {
+                for (let j = 0; j < array.length - i - 1; j++) {
+                    if (array[j] > array[j + 1]) await swap(j, j + 1);
+                }
+            }
+        }
+
+        // Selection Sort
+        async function selectionSort() {
+            for (let i = 0; i < array.length; i++) {
+                let minIdx = i;
+                for (let j = i + 1; j < array.length; j++)
+                    if (array[j] < array[minIdx]) minIdx = j;
+                if (minIdx !== i) await swap(i, minIdx);
+            }
+        }
+
+        // Insertion Sort
+        async function insertionSort() {
+            for (let i = 1; i < array.length; i++) {
+                let key = array[i];
+                let j = i - 1;
+                while (j >= 0 && array[j] > key) {
+                    array[j + 1] = array[j];
+                    renderArray([j, j + 1]);
+                    await sleep(50);
+                    j--;
+                }
+                array[j + 1] = key;
+                renderArray([j + 1]);
+                await sleep(50);
+            }
+        }
+
+        // Merge Sort
+        async function mergeSortWrapper() {
+            await mergeSort(0, array.length - 1);
+        }
+        async function mergeSort(start, end) {
+            if (start >= end) return;
+            const mid = Math.floor((start + end) / 2);
+            await mergeSort(start, mid);
+            await mergeSort(mid + 1, end);
+            await merge(start, mid, end);
+        }
+
+        async function merge(start, mid, end) {
+            const left = array.slice(start, mid + 1);
+            const right = array.slice(mid + 1, end + 1);
+            let i = 0,
+                j = 0,
+                k = start;
+            while (i < left.length && j < right.length) {
+                if (left[i] <= right[j]) array[k++] = left[i++];
+                else array[k++] = right[j++];
+                renderArray([k - 1]);
+                await sleep(50);
+            }
+            while (i < left.length) {
+                array[k++] = left[i++];
+                renderArray([k - 1]);
+                await sleep(50);
+            }
+            while (j < right.length) {
+                array[k++] = right[j++];
+                renderArray([k - 1]);
+                await sleep(50);
+            }
+        }
+
+        // Quick Sort
+        async function quickSortWrapper(start, end) {
+            await quickSort(start, end);
+        }
+        async function quickSort(start, end) {
+            if (start >= end) return;
+            let pivot = array[end];
+            let i = start;
+            for (let j = start; j < end; j++) {
+                if (array[j] < pivot) await swap(i++, j);
+            }
+            await swap(i, end);
+            await quickSort(start, i - 1);
+            await quickSort(i + 1, end);
+        }
+
+        // Heap Sort
+        async function heapSort() {
+            let n = array.length;
+            for (let i = Math.floor(n / 2) - 1; i >= 0; i--) await heapify(n, i);
+            for (let i = n - 1; i > 0; i--) {
+                await swap(0, i);
+                await heapify(i, 0);
+            }
+        }
+
+        async function heapify(n, i) {
+            let largest = i;
+            let l = 2 * i + 1;
+            let r = 2 * i + 2;
+            if (l < n && array[l] > array[largest]) largest = l;
+            if (r < n && array[r] > array[largest]) largest = r;
+            if (largest !== i) {
+                await swap(i, largest);
+                await heapify(n, largest);
+            }
+        }
+
+        // Initialize array
+        shuffleArray();
+    </script>
+
+</body>
+
+</html>
